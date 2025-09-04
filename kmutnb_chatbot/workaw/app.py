@@ -79,6 +79,7 @@ try:
 except Exception as e:
     st.error(f"Error reading file: {e}")
     st.stop()
+
 # ----------------- CREATE / REUSE CHAT SESSION -----------------
 # ยัด context จาก PDF เข้า history แค่ครั้งแรก แล้วใช้ session เดิมต่อ ย่นเวลา!
 def ensure_chat_session():
