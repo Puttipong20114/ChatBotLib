@@ -69,7 +69,7 @@ if "messages" not in st.session_state:
     ]
 
 # ----------------- LOAD DATASET ONCE -----------------
-file_path = os.path.join(os.path.dirname(__file__), "data", "DataSetLibraly.pdf")
+file_path = os.path.join(os.path.dirname(__file__), "workaw", "data", "DataSetLibraly.pdf")
 
 try:
     file_content = load_kmutnb_summary(file_path)
