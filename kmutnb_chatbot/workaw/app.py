@@ -69,7 +69,7 @@ if "messages" not in st.session_state:
     ]
 
 # ----------------- LOAD DATASET ONCE -----------------
-file_path = r"C:\Users\Acer\Downloads\kmutnb_chatbot-20250806T145714Z-1-001\kmutnb_chatbot\workaw\DataSetLibraly.pdf"
+file_path = os.path.join(os.path.dirname(__file__), "data", "DataSetLibraly.pdf")
 
 try:
     file_content = load_kmutnb_summary(file_path)
