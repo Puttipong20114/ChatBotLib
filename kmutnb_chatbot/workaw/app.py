@@ -39,11 +39,98 @@ def get_model():
 
 model = get_model()
 
+# ----------------- FILE PATH MANAGEMENT -----------------
+def find_dataset_file():
+    """
+    ค้นหาไฟล์ dataset จากหลายที่ เพื่อให้ work ได้ทั้งใน local และ deployed environment
+    """
+    possible_paths = [
+        # Path สำหรับ local development
+        "DataSetLibraly.pdf",
+        "./DataSetLibraly.pdf",
+        os.path.join(os.path.dirname(__file__), "DataSetLibraly.pdf"),
+        
+        # Path สำหรับ deployed environment (Streamlit Cloud, Heroku, etc.)
+        os.path.join(os.getcwd(), "DataSetLibraly.pdf"),
+        "/app/DataSetLibraly.pdf",  # Heroku
+        "/mount/src/DataSetLibraly.pdf",  # Streamlit Cloud
+        
+        # Path สำหรับ subfolder
+        os.path.join("data", "DataSetLibraly.pdf"),
+        os.path.join("assets", "DataSetLibraly.pdf"),
+        os.path.join("documents", "DataSetLibraly.pdf"),
+        
+        # Alternative names
+        "dataset_library.pdf",
+        "DataSetLibrary.pdf",  # แก้การสะกดที่อาจผิด
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+    
+    return None
+
+def get_dataset_path():
+    """
+    หา path ของไฟล์ dataset พร้อมแสดง debug info
+    """
+    # ลองหาไฟล์อัตโนมัติ
+    found_path = find_dataset_file()
+    
+    if found_path:
+        return found_path
+    
+    # ถ้าหาไม่เจอ แสดง debug info
+    st.sidebar.write("🔍 **Debug Info:**")
+    st.sidebar.write(f"Current working directory: `{os.getcwd()}`")
+    st.sidebar.write(f"Script directory: `{os.path.dirname(__file__)}`")
+    
+    # แสดงไฟล์ที่มีในโฟลเดอร์ปัจจุบัน
+    try:
+        files = os.listdir(os.getcwd())
+        pdf_files = [f for f in files if f.endswith('.pdf')]
+        st.sidebar.write(f"PDF files found: {pdf_files}")
+        st.sidebar.write(f"All files in current dir: {files[:10]}...")  # แสดงแค่ 10 ไฟล์แรก
+    except Exception as e:
+        st.sidebar.write(f"Error listing files: {e}")
+    
+    return None
+
 # ----------------- IO & CACHE -----------------
 # อ่าน/สรุป PDF แล้ว cache ผลลัพธ์ กัน I/O หนัก ๆ ตอน rerun
 @st.cache_data(show_spinner=True)
 def load_kmutnb_summary(path: str) -> str:
-    return get_kmutnb_summary(path)
+    """Load และ cache ข้อมูลจาก PDF"""
+    try:
+        return get_kmutnb_summary(path)
+    except Exception as e:
+        return f"Error loading PDF: {str(e)}"
+
+# ----------------- UPLOAD FALLBACK -----------------
+def handle_file_upload():
+    """
+    ให้ user อัปโหลดไฟล์เองถ้าหาไฟล์ไม่เจอ
+    """
+    st.warning("⚠️ ไม่พบไฟล์ DataSetLibraly.pdf ในระบบ")
+    st.info("💡 กรุณาอัปโหลดไฟล์ dataset ของคุณ")
+    
+    uploaded_file = st.file_uploader(
+        "อัปโหลดไฟล์ PDF Dataset",
+        type=['pdf'],
+        help="อัปโหลดไฟล์ DataSetLibraly.pdf หรือไฟล์ PDF ที่มีข้อมูลห้องสมุด KMUTNB"
+    )
+    
+    if uploaded_file is not None:
+        # บันทึกไฟล์ชั่วคราว
+        temp_path = f"temp_{uploaded_file.name}"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        st.success(f"✅ อัปโหลดไฟล์ {uploaded_file.name} เรียบร้อยแล้ว")
+        return temp_path
+    
+    return None
 
 # ----------------- UI -----------------
 def clear_history():
@@ -57,6 +144,10 @@ def clear_history():
 with st.sidebar:
     if st.button("Clear History"):
         clear_history()
+    
+    # แสดงสถานะไฟล์
+    st.markdown("---")
+    st.subheader("📁 File Status")
 
 st.title("💬 KMUTNB Library Chatbot สวัสดีครับ")
 
@@ -68,14 +159,31 @@ if "messages" not in st.session_state:
         }
     ]
 
-# ----------------- LOAD DATASET ONCE -----------------
-file_path = os.path.join(os.path.dirname(__file__), "DataSetLibraly.pdf")
+# ----------------- LOAD DATASET WITH FLEXIBLE PATH -----------------
+file_path = get_dataset_path()
+
+if file_path is None:
+    # ถ้าหาไฟล์ไม่เจอ ให้ user อัปโหลดเอง
+    file_path = handle_file_upload()
+
+if file_path is None:
+    st.error("❌ ไม่สามารถโหลดไฟล์ dataset ได้ กรุณาอัปโหลดไฟล์หรือตรวจสอบการติดตั้ง")
+    st.stop()
+
+# แสดงสถานะไฟล์ที่ใช้
+with st.sidebar:
+    st.success(f"✅ Using file: `{os.path.basename(file_path)}`")
+    st.caption(f"Full path: `{file_path}`")
 
 try:
     file_content = load_kmutnb_summary(file_path)
-    if isinstance(file_content, str) and file_content.startswith("Error:"):
+    if isinstance(file_content, str) and file_content.startswith("Error"):
         st.error(file_content)
+        st.info("💡 ลองตรวจสอบไฟล์ PDF หรืออัปโหลดไฟล์ใหม่")
         st.stop()
+    else:
+        with st.sidebar:
+            st.info(f"📄 Content loaded: {len(file_content)} characters")
 except Exception as e:
     st.error(f"Error reading file: {e}")
     st.stop()
